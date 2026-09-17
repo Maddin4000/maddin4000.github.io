@@ -1,124 +1,490 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<meta charset="utf-8">
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Martin Hilbrandt — Apps</title>
-<meta name="description" content="Apps von Martin Hilbrandt: Smoke-Counter, SDD-Stopf-Analyzer und Therapieplan. Support, Datenschutz und Kontakt.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,400;6..72,600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<title>Handwerker Treff — Inhalte pflegen</title>
+<style>
+  :root {
+    --navy: #0D1B2A;
+    --navy-light: #16293D;
+    --orange: #FF8C00;
+    --border: #26374A;
+    --muted: #8A99A8;
+    --bg: #0A141F;
+    --card: #101F30;
+    --danger: #E5484D;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    background: var(--bg);
+    color: #EAF0F6;
+    min-height: 100vh;
+  }
+  header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  header h1 {
+    font-size: 18px;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .badge {
+    width: 30px; height: 30px;
+    background: var(--orange);
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 12px;
+    color: #fff;
+  }
+  #logoutBtn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 7px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  main { max-width: 900px; margin: 0 auto; padding: 24px; }
+
+  /* --- Login --- */
+  #loginScreen {
+    max-width: 360px;
+    margin: 80px auto;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px;
+    text-align: center;
+  }
+  #loginScreen p { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  #loginScreen input {
+    width: 100%;
+    padding: 11px 12px;
+    margin-top: 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--navy);
+    color: #fff;
+    font-size: 14px;
+  }
+  #loginScreen button, .primary-btn {
+    width: 100%;
+    margin-top: 14px;
+    padding: 11px;
+    border-radius: 8px;
+    border: none;
+    background: var(--orange);
+    color: #fff;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  #loginError { color: var(--danger); font-size: 13px; margin-top: 10px; min-height: 16px; }
+
+  /* --- Tabs --- */
+  .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+  .tab {
+    padding: 9px 16px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .tab.active { background: var(--orange); border-color: var(--orange); color: #fff; }
+
+  .section-title { font-size: 15px; font-weight: 700; margin: 24px 0 10px; color: #fff; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .card.inactive { opacity: 0.5; }
+  .card .info { flex: 1; min-width: 0; }
+  .card .info b { font-size: 14px; display: block; }
+  .card .info span { font-size: 12px; color: var(--muted); display: block; margin-top: 2px; }
+  .icon-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .icon-btn:hover { color: #fff; }
+  .icon-btn.danger:hover { color: var(--danger); border-color: var(--danger); }
+
+  form.editor {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    margin-top: 8px;
+    display: none;
+  }
+  form.editor.open { display: block; }
+  form.editor .row { margin-bottom: 12px; }
+  form.editor label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+  form.editor input, form.editor select, form.editor textarea {
+    width: 100%;
+    padding: 9px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--navy);
+    color: #fff;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  form.editor .two-col { display: flex; gap: 12px; }
+  form.editor .two-col > div { flex: 1; }
+  form.editor .checkbox-row { display: flex; align-items: center; gap: 8px; }
+  form.editor .checkbox-row input { width: auto; }
+  form.editor .actions { display: flex; gap: 10px; margin-top: 16px; }
+  .btn { padding: 10px 16px; border-radius: 8px; border: none; font-weight: 700; font-size: 13px; cursor: pointer; }
+  .btn-primary { background: var(--orange); color: #fff; }
+  .btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+
+  .add-btn {
+    background: transparent;
+    border: 1.6px dashed var(--border);
+    color: var(--muted);
+    padding: 12px;
+    border-radius: 12px;
+    width: 100%;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    margin-top: 8px;
+  }
+  .add-btn:hover { color: var(--orange); border-color: var(--orange); }
+
+  .empty { color: var(--muted); font-size: 13px; padding: 20px 0; text-align: center; }
+  .toast {
+    position: fixed;
+    bottom: 20px; left: 50%;
+    transform: translateX(-50%);
+    background: var(--navy-light);
+    border: 1px solid var(--border);
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-size: 13px;
+    display: none;
+    z-index: 50;
+  }
+  .toast.error { border-color: var(--danger); color: var(--danger); }
+  .hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  a.hint-link { color: var(--orange); }
+</style>
 </head>
 <body>
 
-<header class="site">
-  <div class="wrap">
-    <a class="wordmark" href="index.html">Martin Hilbrandt</a>
-    <nav class="site" aria-label="Hauptnavigation">
-      <ul>
-        <li><a href="index.html" aria-current="page">Apps</a></li>
-        <li><a href="support.html">Support</a></li>
-        <li><a href="privacy.html">Datenschutz</a></li>
-        <li><a href="impressum.html">Impressum</a></li>
-      </ul>
-    </nav>
-  </div>
-</header>
+<div id="loginScreen">
+  <div class="badge" style="margin: 0 auto 10px;">HT</div>
+  <h2 style="margin:0;">Handwerker Treff</h2>
+  <p>Passwort eingeben, um Werbepartner und Tipps/Infos zu pflegen.</p>
+  <input type="password" id="passwordInput" placeholder="Passwort" autofocus>
+  <button onclick="tryLogin()">Anmelden</button>
+  <div id="loginError"></div>
+</div>
 
-<main>
-  <div class="wrap">
-
-    <div class="hero">
-      <p class="eyebrow">Unabhängige App-Entwicklung · Wiefelstede</p>
-      <h1>Zählen,<br>was zählt.</h1>
-      <p class="lead">Zwei kleine Apps für iOS und Android, die eine einzige Frage beantworten: Was kostet dich deine Gewohnheit — in Zigaretten und in Euro?</p>
-
-      <svg class="tally" viewBox="0 0 400 90" role="img" aria-label="Strichliste: neun Striche">
-        <line x1="18"  y1="15" x2="18"  y2="75"/>
-        <line x1="42"  y1="15" x2="42"  y2="75"/>
-        <line x1="66"  y1="15" x2="66"  y2="75"/>
-        <line x1="90"  y1="15" x2="90"  y2="75"/>
-        <line class="cross" x1="8" y1="72" x2="100" y2="18"/>
-        <line x1="140" y1="15" x2="140" y2="75"/>
-        <line x1="164" y1="15" x2="164" y2="75"/>
-        <line x1="188" y1="15" x2="188" y2="75"/>
-        <line x1="212" y1="15" x2="212" y2="75"/>
-      </svg>
+<div id="app" style="display:none;">
+  <header>
+    <h1><span class="badge">HT</span> Inhalte pflegen</h1>
+    <button id="logoutBtn" onclick="logout()">Abmelden</button>
+  </header>
+  <main>
+    <div class="tabs">
+      <div class="tab active" data-tab="ads" onclick="switchTab('ads')">Werbepartner</div>
+      <div class="tab" data-tab="infos" onclick="switchTab('infos')">Tipps &amp; Infos</div>
     </div>
 
-    <section>
-      <div class="apps">
+    <div id="tab-ads">
+      <div class="section-title">Werbepartner</div>
+      <div id="adsList"></div>
+      <button class="add-btn" onclick="openEditor('ads')">+ Neuer Werbepartner</button>
+    </div>
 
-        <article class="app">
-          <p class="eyebrow">iOS</p>
-          <h2>Smoke-Counter</h2>
-          <p><span class="badge live">Im App Store</span></p>
-          <p>Ein Tageszähler mit selbst gesetztem Limit. Die App führt Verlauf und Statistik als Diagramm, rechnet die Kosten aus Packungspreis und Zigaretten pro Schachtel hoch und exportiert alles als PDF.</p>
-          <ul>
-            <li>Tageszähler mit Limit</li>
-            <li>Verlauf und Statistik</li>
-            <li>PDF-Export</li>
-            <li>Kostenrechnung nach eigenen Preisen</li>
-          </ul>
-          <p>Eine Android-Fassung ist in Arbeit.</p>
-        </article>
+    <div id="tab-infos" style="display:none;">
+      <div class="section-title">Tipps, Events, News &amp; Jobs</div>
+      <div id="infosList"></div>
+      <button class="add-btn" onclick="openEditor('infos')">+ Neuer Eintrag</button>
+    </div>
+  </main>
+</div>
 
-        <article class="app">
-          <p class="eyebrow">iOS · Android in Vorbereitung</p>
-          <h2>SDD-Stopf-Analyzer</h2>
-          <p><span class="badge">18+</span><span class="badge">In Entwicklung</span></p>
-          <p>Selbst stopfen oder fertig kaufen? Der Analyzer rechnet Tabak, Hülsen und Stopfaufwand gegen den Preis einer Fertigpackung und zeigt, ab wann sich der Unterschied lohnt.</p>
-          <ul>
-            <li>Stopf-Sessions erfassen</li>
-            <li>Tabaksorten und Hülsen verwalten</li>
-            <li>Direkter Preisvergleich pro Zigarette</li>
-            <li>Übersicht über den eigenen Verbrauch</li>
-          </ul>
-          <p>Beim ersten Start bestätigst du, dass du volljährig bist.</p>
-        </article>
+<div class="toast" id="toast"></div>
 
-        <article class="app">
-          <p class="eyebrow">iOS · Android</p>
-          <h2>Therapieplan</h2>
-          <p><span class="badge">Privates Projekt</span></p>
-          <p>Für Patienten einer Reha-Klinik: Therapie- und Speiseplan abfotografieren oder als PDF einlesen, Termine tagesweise durchwischen, Räume im Klinik-Wegweiser nachschlagen.</p>
-          <ul>
-            <li>Therapie- und Speiseplan per Foto oder PDF einlesen</li>
-            <li>Tagesansicht mit Wisch-Navigation</li>
-            <li>Termin-Erinnerung, an- und abschaltbar</li>
-            <li>Klinik-Wegweiser</li>
-          </ul>
-          <p>Privates Projekt eines Patienten — keine offizielle App einer Fachklinik. Kein Backend, keine Cloud-OCR, keine Analytics: alles bleibt auf dem Gerät. Mehr dazu unter <a href="therapieplan/support.html">Support</a> und <a href="therapieplan/privacy.html">Datenschutz</a>.</p>
-        </article>
+<script>
+// ---- Konfiguration ----
+// URL der Supabase Edge Function "admin-content". Falls sich dein
+// Supabase-Projekt ändert, hier anpassen (Dashboard -> Edge Functions ->
+// admin-content -> URL kopieren).
+const FUNCTION_URL = 'https://beleepsctqfoewxyomjj.supabase.co/functions/v1/admin-content';
 
-      </div>
-    </section>
+const FIELD_CONFIG = {
+  ads: {
+    label: 'Werbepartner',
+    fields: [
+      { key: 'category', label: 'Kategorie', type: 'select', options: ['werkzeug', 'kleidung', 'fahrzeuge', 'sonstiges'] },
+      { key: 'name', label: 'Name', type: 'text', required: true },
+      { key: 'tagline', label: 'Slogan / Tagline', type: 'text' },
+      { key: 'icon', label: 'Icon (Ionicons-Name, z. B. hammer-outline)', type: 'text', hint: 'Vorschau aller Icon-Namen: <a class="hint-link" href="https://icons.expo.fyi" target="_blank">icons.expo.fyi</a>. Wird nur angezeigt, wenn kein Logo-Bild gesetzt ist.' },
+      { key: 'logo_url', label: 'Logo-Bild-URL (optional)', type: 'text', hint: 'Öffentlicher Bild-Link (z. B. aus Supabase Storage). Leer lassen für Icon statt Logo.' },
+      { key: 'link', label: 'Link (optional, z. B. Website)', type: 'text' },
+      { key: 'sort_order', label: 'Reihenfolge (kleinere Zahl = weiter oben)', type: 'number' },
+      { key: 'active', label: 'Sichtbar in der App', type: 'checkbox' },
+    ],
+    titleField: 'name',
+    subtitleField: 'tagline',
+  },
+  infos: {
+    label: 'Tipps & Infos',
+    fields: [
+      { key: 'kind', label: 'Art', type: 'select', options: [['event', 'Event'], ['news', 'News'], ['tip', 'Tipp'], ['job', 'Job']] },
+      { key: 'title', label: 'Titel', type: 'text', required: true },
+      { key: 'subtitle', label: 'Beschreibung', type: 'textarea' },
+      { key: 'meta', label: 'Zusatzinfo (optional, z. B. Datum/Ort)', type: 'text' },
+      { key: 'icon', label: 'Icon (Ionicons-Name, z. B. bulb-outline)', type: 'text', hint: 'Vorschau aller Icon-Namen: <a class="hint-link" href="https://icons.expo.fyi" target="_blank">icons.expo.fyi</a>.' },
+      { key: 'sort_order', label: 'Reihenfolge (kleinere Zahl = weiter oben)', type: 'number' },
+      { key: 'active', label: 'Sichtbar in der App', type: 'checkbox' },
+    ],
+    titleField: 'title',
+    subtitleField: 'subtitle',
+  },
+};
 
-    <section>
-      <h2>Wie diese Apps mit deinen Daten umgehen</h2>
-      <p>Alles, was du eingibst, bleibt auf deinem Gerät. Es gibt kein Konto, keinen Server und keine Übertragung deiner Zähldaten an mich. Werbung wird über Google AdMob ausgeliefert — was dabei erhoben wird und wie du widersprichst, steht in der <a href="privacy.html">Datenschutzerklärung</a>.</p>
-    </section>
+let password = '';
+let dataCache = { ads: [], infos: [] };
 
-    <section>
-      <h2>Hilfe und Rückmeldung</h2>
-      <p>Fehler gefunden oder eine Funktion vermisst? Schreib mir. Ich lese jede Nachricht selbst — siehe <a href="support.html">Support</a>.</p>
-    </section>
+function toast(msg, isError) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (isError ? ' error' : '');
+  t.style.display = 'block';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.display = 'none'; }, 3200);
+}
 
-  </div>
-</main>
+async function callApi(table, action, extra) {
+  const res = await fetch(FUNCTION_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password, table, action, ...extra }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || ('Fehler ' + res.status));
+  return body;
+}
 
-<footer class="site">
-  <div class="wrap">
-    <ul>
-      <li><a href="support.html">Support</a></li>
-      <li><a href="privacy.html">Datenschutz</a></li>
-      <li><a href="impressum.html">Impressum</a></li>
-      <li><a href="app-ads.txt">app-ads.txt</a></li>
-    </ul>
-    <p>© 2026 Martin Hilbrandt</p>
-  </div>
-</footer>
+async function tryLogin() {
+  const input = document.getElementById('passwordInput');
+  const pw = input.value.trim();
+  if (!pw) return;
+  document.getElementById('loginError').textContent = '';
+  try {
+    const result = await fetch(FUNCTION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw, table: 'ads', action: 'list' }),
+    });
+    const body = await result.json().catch(() => ({}));
+    if (!result.ok) throw new Error(body.error || 'Login fehlgeschlagen');
+    password = pw;
+    try { localStorage.setItem('ht_admin_pw', pw); } catch (e) {}
+    dataCache.ads = body.data || [];
+    showApp();
+  } catch (e) {
+    document.getElementById('loginError').textContent = e.message;
+  }
+}
 
+function logout() {
+  password = '';
+  try { localStorage.removeItem('ht_admin_pw'); } catch (e) {}
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'block';
+  document.getElementById('passwordInput').value = '';
+}
+
+function showApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  renderList('ads');
+  loadTable('infos');
+}
+
+async function loadTable(table) {
+  try {
+    const body = await callApi(table, 'list');
+    dataCache[table] = body.data || [];
+    renderList(table);
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((el) => el.classList.toggle('active', el.dataset.tab === tab));
+  document.getElementById('tab-ads').style.display = tab === 'ads' ? 'block' : 'none';
+  document.getElementById('tab-infos').style.display = tab === 'infos' ? 'block' : 'none';
+}
+
+function renderList(table) {
+  const cfg = FIELD_CONFIG[table];
+  const container = document.getElementById(table + 'List');
+  const rows = dataCache[table] || [];
+  container.innerHTML = '';
+  if (!rows.length) {
+    container.innerHTML = '<div class="empty">Noch keine Einträge.</div>';
+    return;
+  }
+  rows.forEach((row) => {
+    const card = document.createElement('div');
+    card.className = 'card' + (row.active === false ? ' inactive' : '');
+    card.innerHTML =
+      '<div class="info"><b></b><span></span></div>' +
+      '<button class="icon-btn" title="Bearbeiten">✎</button>' +
+      '<button class="icon-btn danger" title="Löschen">🗑</button>';
+    card.querySelector('b').textContent = row[cfg.titleField] || '(ohne Titel)';
+    card.querySelector('span').textContent = row[cfg.subtitleField] || '';
+    const [editBtn, delBtn] = card.querySelectorAll('.icon-btn');
+    editBtn.onclick = () => openEditor(table, row);
+    delBtn.onclick = () => deleteRow(table, row);
+    container.appendChild(card);
+  });
+}
+
+async function deleteRow(table, row) {
+  const cfg = FIELD_CONFIG[table];
+  if (!confirm('"' + (row[cfg.titleField] || '') + '" wirklich löschen?')) return;
+  try {
+    await callApi(table, 'delete', { id: row.id });
+    toast('Gelöscht.');
+    loadTable(table);
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+function openEditor(table, existing) {
+  const cfg = FIELD_CONFIG[table];
+  const containerId = 'tab-' + table;
+  const old = document.getElementById('editor-' + table);
+  if (old) old.remove();
+
+  const form = document.createElement('form');
+  form.className = 'editor open';
+  form.id = 'editor-' + table;
+
+  cfg.fields.forEach((f) => {
+    const row = document.createElement('div');
+    row.className = 'row';
+    const value = existing ? existing[f.key] : (f.type === 'checkbox' ? true : (f.type === 'number' ? 0 : ''));
+
+    if (f.type === 'checkbox') {
+      row.innerHTML =
+        '<label class="checkbox-row"><input type="checkbox" data-field="' + f.key + '" ' + (value ? 'checked' : '') + '> ' + f.label + '</label>';
+    } else if (f.type === 'select') {
+      const opts = f.options.map((o) => {
+        const [val, lbl] = Array.isArray(o) ? o : [o, o];
+        const sel = existing && existing[f.key] === val ? 'selected' : '';
+        return '<option value="' + val + '" ' + sel + '>' + lbl + '</option>';
+      }).join('');
+      row.innerHTML = '<label>' + f.label + '</label><select data-field="' + f.key + '">' + opts + '</select>';
+    } else if (f.type === 'textarea') {
+      row.innerHTML = '<label>' + f.label + '</label><textarea rows="2" data-field="' + f.key + '"></textarea>';
+    } else {
+      row.innerHTML = '<label>' + f.label + '</label><input type="' + (f.type === 'number' ? 'number' : 'text') + '" data-field="' + f.key + '">';
+    }
+    if (f.hint) {
+      const hint = document.createElement('div');
+      hint.className = 'hint';
+      hint.innerHTML = f.hint;
+      row.appendChild(hint);
+    }
+    form.appendChild(row);
+
+    if (f.type !== 'checkbox') {
+      const input = row.querySelector('[data-field="' + f.key + '"]');
+      input.value = value != null ? value : '';
+    }
+  });
+
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+  actions.innerHTML =
+    '<button type="submit" class="btn btn-primary">' + (existing ? 'Speichern' : 'Anlegen') + '</button>' +
+    '<button type="button" class="btn btn-secondary">Abbrechen</button>';
+  form.appendChild(actions);
+  actions.querySelector('.btn-secondary').onclick = () => form.remove();
+
+  form.onsubmit = async (ev) => {
+    ev.preventDefault();
+    const row = existing ? { id: existing.id } : {};
+    cfg.fields.forEach((f) => {
+      const el = form.querySelector('[data-field="' + f.key + '"]');
+      if (f.type === 'checkbox') {
+        row[f.key] = el.checked;
+      } else if (f.type === 'number') {
+        row[f.key] = el.value === '' ? 0 : Number(el.value);
+      } else {
+        row[f.key] = el.value;
+      }
+    });
+    try {
+      await callApi(table, 'upsert', { row });
+      toast('Gespeichert.');
+      form.remove();
+      loadTable(table);
+    } catch (e) {
+      toast(e.message, true);
+    }
+  };
+
+  document.getElementById(containerId).appendChild(form);
+  form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// Passwort aus vorherigem Besuch übernehmen, falls vorhanden
+(function init() {
+  let saved = '';
+  try { saved = localStorage.getItem('ht_admin_pw') || ''; } catch (e) {}
+  if (saved) {
+    document.getElementById('passwordInput').value = saved;
+    password = saved;
+    callApi('ads', 'list').then((body) => {
+      dataCache.ads = body.data || [];
+      showApp();
+    }).catch(() => {
+      password = '';
+    });
+  }
+})();
+</script>
 </body>
 </html>

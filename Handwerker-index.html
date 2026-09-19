@@ -221,6 +221,7 @@
     <div class="tabs">
       <div class="tab active" data-tab="ads" onclick="switchTab('ads')">Werbepartner</div>
       <div class="tab" data-tab="infos" onclick="switchTab('infos')">Tipps &amp; Infos</div>
+      <div class="tab" data-tab="remote_config" onclick="switchTab('remote_config')">Einstellungen</div>
     </div>
 
     <div id="tab-ads">
@@ -233,6 +234,13 @@
       <div class="section-title">Tipps, Events, News &amp; Jobs</div>
       <div id="infosList"></div>
       <button class="add-btn" onclick="openEditor('infos')">+ Neuer Eintrag</button>
+    </div>
+
+    <div id="tab-remote_config" style="display:none;">
+      <div class="section-title">Einstellungen (App-Konfiguration ohne Update)</div>
+      <p class="hint" style="margin-bottom: 14px;">Diese Werte liest die App live aus der Datenbank -- eine Änderung hier wirkt sich (fast) sofort in der App aus, ganz ohne neues Update/Build.</p>
+      <div id="remote_configList"></div>
+      <button class="add-btn" onclick="openEditor('remote_config')">+ Neue Einstellung</button>
     </div>
   </main>
 </div>
@@ -249,6 +257,7 @@ const FUNCTION_URL = 'https://beleepsctqfoewxyomjj.supabase.co/functions/v1/admi
 const FIELD_CONFIG = {
   ads: {
     label: 'Werbepartner',
+    idField: 'id',
     fields: [
       { key: 'category', label: 'Kategorie', type: 'select', options: ['werkzeug', 'kleidung', 'fahrzeuge', 'sonstiges'] },
       { key: 'name', label: 'Name', type: 'text', required: true },
@@ -268,6 +277,7 @@ const FIELD_CONFIG = {
   },
   infos: {
     label: 'Tipps & Infos',
+    idField: 'id',
     fields: [
       { key: 'kind', label: 'Art', type: 'select', options: [['event', 'Event'], ['news', 'News'], ['tip', 'Tipp'], ['job', 'Job']] },
       { key: 'title', label: 'Titel', type: 'text', required: true },
@@ -284,10 +294,37 @@ const FIELD_CONFIG = {
     titleField: 'title',
     subtitleField: 'subtitle',
   },
+  remote_config: {
+    label: 'Einstellungen',
+    idField: 'key',
+    fields: [
+      {
+        key: 'key',
+        label: 'Schlüssel',
+        type: 'text',
+        required: true,
+        disabledOnEdit: true,
+        hint: 'Eindeutiger Name, z. B. maintenance_mode oder welcome_banner_text. Nach dem Anlegen nicht mehr änderbar (zum "Umbenennen" neuen Schlüssel anlegen und alten löschen).',
+      },
+      {
+        key: 'value',
+        label: 'Wert (als JSON)',
+        type: 'json',
+        hint: 'Muss gültiges JSON sein. Beispiele: <code>true</code>, <code>false</code>, <code>"Ein Text in Anführungszeichen"</code>, <code>123</code>, <code>null</code>.',
+      },
+      { key: 'description', label: 'Beschreibung (optional, nur intern)', type: 'text' },
+    ],
+    titleField: 'key',
+    subtitleField: 'description',
+    subtitleRender: (row) => {
+      const preview = JSON.stringify(row.value);
+      return row.description ? row.description + '  —  ' + preview : preview;
+    },
+  },
 };
 
 let password = '';
-let dataCache = { ads: [], infos: [] };
+let dataCache = { ads: [], infos: [], remote_config: [] };
 
 function toast(msg, isError) {
   const t = document.getElementById('toast');
@@ -343,7 +380,7 @@ function showApp() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   renderList('ads');
-  loadTable('infos');
+  Object.keys(FIELD_CONFIG).filter((t) => t !== 'ads').forEach((t) => loadTable(t));
 }
 
 async function loadTable(table) {
@@ -358,8 +395,9 @@ async function loadTable(table) {
 
 function switchTab(tab) {
   document.querySelectorAll('.tab').forEach((el) => el.classList.toggle('active', el.dataset.tab === tab));
-  document.getElementById('tab-ads').style.display = tab === 'ads' ? 'block' : 'none';
-  document.getElementById('tab-infos').style.display = tab === 'infos' ? 'block' : 'none';
+  Object.keys(FIELD_CONFIG).forEach((t) => {
+    document.getElementById('tab-' + t).style.display = t === tab ? 'block' : 'none';
+  });
 }
 
 function renderList(table) {
@@ -379,7 +417,7 @@ function renderList(table) {
       '<button class="icon-btn" title="Bearbeiten">✎</button>' +
       '<button class="icon-btn danger" title="Löschen">🗑</button>';
     card.querySelector('b').textContent = row[cfg.titleField] || '(ohne Titel)';
-    card.querySelector('span').textContent = row[cfg.subtitleField] || '';
+    card.querySelector('span').textContent = cfg.subtitleRender ? cfg.subtitleRender(row) : (row[cfg.subtitleField] || '');
     const [editBtn, delBtn] = card.querySelectorAll('.icon-btn');
     editBtn.onclick = () => openEditor(table, row);
     delBtn.onclick = () => deleteRow(table, row);
@@ -391,7 +429,7 @@ async function deleteRow(table, row) {
   const cfg = FIELD_CONFIG[table];
   if (!confirm('"' + (row[cfg.titleField] || '') + '" wirklich löschen?')) return;
   try {
-    await callApi(table, 'delete', { id: row.id });
+    await callApi(table, 'delete', { id: row[cfg.idField] });
     toast('Gelöscht.');
     loadTable(table);
   } catch (e) {
@@ -424,8 +462,8 @@ function openEditor(table, existing) {
         return '<option value="' + val + '" ' + sel + '>' + lbl + '</option>';
       }).join('');
       row.innerHTML = '<label>' + f.label + '</label><select data-field="' + f.key + '">' + opts + '</select>';
-    } else if (f.type === 'textarea') {
-      row.innerHTML = '<label>' + f.label + '</label><textarea rows="2" data-field="' + f.key + '"></textarea>';
+    } else if (f.type === 'textarea' || f.type === 'json') {
+      row.innerHTML = '<label>' + f.label + '</label><textarea rows="' + (f.type === 'json' ? 4 : 2) + '" data-field="' + f.key + '"' + (f.type === 'json' ? ' style="font-family: ui-monospace, monospace;"' : '') + '></textarea>';
     } else {
       row.innerHTML = '<label>' + f.label + '</label><input type="' + (f.type === 'number' ? 'number' : 'text') + '" data-field="' + f.key + '">';
     }
@@ -439,7 +477,15 @@ function openEditor(table, existing) {
 
     if (f.type !== 'checkbox') {
       const input = row.querySelector('[data-field="' + f.key + '"]');
-      input.value = value != null ? value : '';
+      if (f.type === 'json') {
+        // Wert liegt schon als echtes JS-Objekt/Wert vor (jsonb-Spalte) --
+        // hübsch formatiert als JSON-Text anzeigen, oder ein leeres Beispiel
+        // beim Neuanlegen.
+        input.value = existing ? JSON.stringify(value, null, 2) : '""';
+      } else {
+        input.value = value != null ? value : '';
+      }
+      if (f.disabledOnEdit && existing) input.disabled = true;
     }
   });
 
@@ -453,17 +499,25 @@ function openEditor(table, existing) {
 
   form.onsubmit = async (ev) => {
     ev.preventDefault();
-    const row = existing ? { id: existing.id } : {};
+    const row = existing ? { [cfg.idField]: existing[cfg.idField] } : {};
+    let jsonError = null;
     cfg.fields.forEach((f) => {
       const el = form.querySelector('[data-field="' + f.key + '"]');
       if (f.type === 'checkbox') {
         row[f.key] = el.checked;
       } else if (f.type === 'number') {
         row[f.key] = el.value === '' ? 0 : Number(el.value);
+      } else if (f.type === 'json') {
+        try {
+          row[f.key] = JSON.parse(el.value);
+        } catch (e) {
+          jsonError = 'Feld "' + f.label + '": kein gültiges JSON (' + e.message + ')';
+        }
       } else {
         row[f.key] = el.value;
       }
     });
+    if (jsonError) { toast(jsonError, true); return; }
     try {
       await callApi(table, 'upsert', { row });
       toast('Gespeichert.');

@@ -304,6 +304,22 @@
     </div>
 
     <div id="tab-remote_config" style="display:none;">
+      <div class="section-title">Push-Benachrichtigung an alle senden</div>
+      <p class="hint" style="margin-bottom: 10px;">Schickt sofort eine echte Push-Benachrichtigung an alle Nutzer mit installierter App -- genau wie bei einer neuen Chat-Nachricht, nur an alle statt an eine Person. Bitte sparsam einsetzen, nur für wichtige Ankündigungen.</p>
+      <form id="broadcastPushForm" class="editor open" style="margin-bottom: 24px;">
+        <div class="row">
+          <label>Titel</label>
+          <input type="text" id="broadcastTitleInput" placeholder="z. B. Handwerker Treff" required>
+        </div>
+        <div class="row">
+          <label>Text</label>
+          <textarea rows="2" id="broadcastBodyInput" placeholder="z. B. Neu: Umkreissuche ist jetzt verfügbar!" required></textarea>
+        </div>
+        <div class="actions">
+          <button type="submit" class="btn btn-primary">Push an alle senden</button>
+        </div>
+      </form>
+
       <div class="section-title">Einstellungen (App-Konfiguration ohne Update)</div>
       <p class="hint" style="margin-bottom: 14px;">Diese Werte liest die App live aus der Datenbank -- eine Änderung hier wirkt sich (fast) sofort in der App aus, ganz ohne neues Update/Build.</p>
       <div id="remote_configList"></div>
@@ -367,6 +383,8 @@ const FUNCTION_URL = 'https://beleepsctqfoewxyomjj.supabase.co/functions/v1/admi
 // URL der Edge Function "admin-logos" (Logo-Bibliothek, separat wegen
 // Bild-Upload). Dashboard -> Edge Functions -> admin-logos -> URL kopieren.
 const LOGOS_FUNCTION_URL = 'https://beleepsctqfoewxyomjj.supabase.co/functions/v1/admin-logos';
+// URL der Edge Function "send-broadcast-push" (Push-Rundruf an alle Nutzer).
+const BROADCAST_FUNCTION_URL = 'https://beleepsctqfoewxyomjj.supabase.co/functions/v1/send-broadcast-push';
 
 const FIELD_CONFIG = {
   ads: {
@@ -910,6 +928,38 @@ function openLogoPickerModal(onSelect) {
   renderCats();
   renderGrid();
 }
+
+// ---- Push-Rundruf an alle Nutzer ----
+
+document.getElementById('broadcastPushForm').onsubmit = async (ev) => {
+  ev.preventDefault();
+  const title = document.getElementById('broadcastTitleInput').value.trim();
+  const messageBody = document.getElementById('broadcastBodyInput').value.trim();
+  if (!title || !messageBody) { toast('Titel und Text sind Pflicht.', true); return; }
+  if (!confirm('Push-Benachrichtigung wirklich an ALLE Nutzer senden?\n\nTitel: ' + title + '\nText: ' + messageBody)) {
+    return;
+  }
+
+  const submitBtn = document.querySelector('#broadcastPushForm button[type="submit"]');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Sende...';
+  try {
+    const res = await fetch(BROADCAST_FUNCTION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password, title, body: messageBody }),
+    });
+    const resBody = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(resBody.error || ('Fehler ' + res.status));
+    toast('Push an ' + (resBody.sent ?? 0) + ' Gerät(e) gesendet.');
+    document.getElementById('broadcastPushForm').reset();
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Push an alle senden';
+  }
+};
 
 // Passwort aus vorherigem Besuch übernehmen, falls vorhanden
 (function init() {

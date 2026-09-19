@@ -890,6 +890,56 @@ function nameFromFileName(fileName) {
   return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : fileName;
 }
 
+// Die App (React Native) kann SVG-Dateien nicht anzeigen -- die eingebaute
+// <Image>-Komponente stellt nur Raster-Formate (PNG/JPG/WebP) dar. Damit
+// heruntergeladene SVG-Icon-Pakete trotzdem als Logo funktionieren, wird
+// jede SVG-Datei hier im Browser automatisch in ein PNG umgewandelt, bevor
+// sie hochgeladen wird -- der Kunde muss nichts manuell konvertieren.
+function svgFileToPngBase64(file, size) {
+  size = size || 512;
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      let svgText = String(reader.result);
+      // Viele Icon-Sets (u. a. Ionicons) nutzen fill/stroke="currentColor" und
+      // verlassen sich auf die umgebende Seite für die Farbe. Als eigenständige
+      // Bild-Datei geladen gibt es diesen Kontext nicht -- ohne Fallback-Farbe
+      // könnte das Icon unsichtbar (transparent) werden. Deshalb Schwarz erzwingen.
+      if (/<svg[^>]*\sstyle=["']/.test(svgText)) {
+        svgText = svgText.replace(/(<svg[^>]*\sstyle=["'])/, '$1color:#000000;');
+      } else {
+        svgText = svgText.replace(/<svg/, '<svg style="color:#000000"');
+      }
+      const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        const pad = size * 0.08; // etwas Rand, damit nichts am Bildrand klebt
+        ctx.drawImage(img, pad, pad, size - pad * 2, size - pad * 2);
+        URL.revokeObjectURL(url);
+        const dataUrl = canvas.toDataURL('image/png');
+        const comma = dataUrl.indexOf(',');
+        resolve(comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('SVG konnte nicht gerendert werden.'));
+      };
+      img.src = url;
+    };
+    reader.onerror = reject;
+    reader.readAsText(file);
+  });
+}
+
+function isSvgFile(file) {
+  return file.type === 'image/svg+xml' || /\.svg$/i.test(file.name);
+}
+
 document.getElementById('logoUploadForm').onsubmit = async (ev) => {
   ev.preventDefault();
   const fileInput = document.getElementById('logoFileInput');
@@ -917,13 +967,22 @@ document.getElementById('logoUploadForm').onsubmit = async (ev) => {
     const name = (files.length === 1 && manualName) ? manualName : nameFromFileName(file.name);
     submitBtn.textContent = 'Lade hoch (' + (done + failed + 1) + '/' + files.length + ')...';
     try {
-      const fileBase64 = await fileToBase64(file);
+      let fileBase64, fileName, contentType;
+      if (isSvgFile(file)) {
+        fileBase64 = await svgFileToPngBase64(file);
+        fileName = file.name.replace(/\.svg$/i, '') + '.png';
+        contentType = 'image/png';
+      } else {
+        fileBase64 = await fileToBase64(file);
+        fileName = file.name;
+        contentType = file.type || 'image/png';
+      }
       await callLogosApi('upload', {
         name,
         category,
         tags,
-        fileName: file.name,
-        contentType: file.type || 'image/png',
+        fileName,
+        contentType,
         fileBase64,
       });
       done++;

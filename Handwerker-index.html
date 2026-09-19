@@ -316,12 +316,13 @@
 
       <form id="logoUploadForm" class="editor open" style="margin-bottom: 20px;">
         <div class="row">
-          <label>Bild-Datei</label>
-          <input type="file" id="logoFileInput" accept="image/*" required>
+          <label>Bild-Datei(en)</label>
+          <input type="file" id="logoFileInput" accept="image/*" multiple required>
+          <div class="hint">Du kannst im Dateidialog mehrere Bilder auf einmal auswählen (Mehrfachauswahl, z. B. mit Cmd/Strg gedrückt halten). Bei mehreren Dateien wird der Name automatisch aus dem jeweiligen Dateinamen erzeugt -- Kategorie und Suchbegriffe unten gelten dann für alle ausgewählten Bilder.</div>
         </div>
         <div class="row">
-          <label>Name</label>
-          <input type="text" id="logoNameInput" placeholder="z. B. Hammer rot" required>
+          <label>Name (nur bei einer einzelnen Datei)</label>
+          <input type="text" id="logoNameInput" placeholder="z. B. Hammer rot">
         </div>
         <div class="row two-col">
           <div>
@@ -341,7 +342,7 @@
         <div class="row">
           <label>Suchbegriffe (Komma-getrennt)</label>
           <input type="text" id="logoTagsInput" placeholder="z. B. hammer, werkzeug, schlagen">
-          <div class="hint">Damit findest du das Logo später über die Suche wieder.</div>
+          <div class="hint">Damit findest du die Logos später über die Suche wieder. Gilt für alle Dateien in diesem Durchgang.</div>
         </div>
         <div class="actions">
           <button type="submit" class="btn btn-primary">Hochladen</button>
@@ -729,11 +730,19 @@ function fileToBase64(file) {
   });
 }
 
+// Aus einem Dateinamen einen brauchbaren Anzeigenamen machen, z. B.
+// "hammer_rot.png" -> "Hammer rot". Wird bei Mehrfachauswahl pro Datei genutzt.
+function nameFromFileName(fileName) {
+  const base = fileName.replace(/\.[^.]+$/, '');
+  const spaced = base.replace(/[-_]+/g, ' ').trim();
+  return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : fileName;
+}
+
 document.getElementById('logoUploadForm').onsubmit = async (ev) => {
   ev.preventDefault();
   const fileInput = document.getElementById('logoFileInput');
-  const file = fileInput.files[0];
-  const name = document.getElementById('logoNameInput').value.trim();
+  const files = Array.from(fileInput.files || []);
+  const manualName = document.getElementById('logoNameInput').value.trim();
   const catSelect = document.getElementById('logoCategorySelect').value;
   const category = catSelect === '__custom__'
     ? (document.getElementById('logoCustomCategoryInput').value.trim() || 'sonstiges')
@@ -741,25 +750,47 @@ document.getElementById('logoUploadForm').onsubmit = async (ev) => {
   const tags = document.getElementById('logoTagsInput').value
     .split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
 
-  if (!file || !name) { toast('Bild und Name sind Pflicht.', true); return; }
-
-  try {
-    const fileBase64 = await fileToBase64(file);
-    await callLogosApi('upload', {
-      name,
-      category,
-      tags,
-      fileName: file.name,
-      contentType: file.type || 'image/png',
-      fileBase64,
-    });
-    toast('Logo hochgeladen.');
-    document.getElementById('logoUploadForm').reset();
-    document.getElementById('logoCustomCategoryWrap').style.display = 'none';
-    loadLogos();
-  } catch (e) {
-    toast(e.message, true);
+  if (!files.length) { toast('Bitte mindestens eine Bild-Datei wählen.', true); return; }
+  if (files.length === 1 && !manualName) {
+    toast('Bitte einen Namen eingeben (oder mehrere Dateien für automatische Namen wählen).', true);
+    return;
   }
+
+  const submitBtn = document.querySelector('#logoUploadForm button[type="submit"]');
+  submitBtn.disabled = true;
+  let done = 0;
+  let failed = 0;
+
+  for (const file of files) {
+    const name = (files.length === 1 && manualName) ? manualName : nameFromFileName(file.name);
+    submitBtn.textContent = 'Lade hoch (' + (done + failed + 1) + '/' + files.length + ')...';
+    try {
+      const fileBase64 = await fileToBase64(file);
+      await callLogosApi('upload', {
+        name,
+        category,
+        tags,
+        fileName: file.name,
+        contentType: file.type || 'image/png',
+        fileBase64,
+      });
+      done++;
+    } catch (e) {
+      failed++;
+    }
+  }
+
+  submitBtn.disabled = false;
+  submitBtn.textContent = 'Hochladen';
+
+  if (failed) {
+    toast(done + ' hochgeladen, ' + failed + ' fehlgeschlagen.', true);
+  } else {
+    toast(done + (done === 1 ? ' Logo hochgeladen.' : ' Logos hochgeladen.'));
+  }
+  document.getElementById('logoUploadForm').reset();
+  document.getElementById('logoCustomCategoryWrap').style.display = 'none';
+  loadLogos();
 };
 
 function renderLogoCategoryFilters() {

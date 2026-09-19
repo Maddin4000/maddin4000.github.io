@@ -430,7 +430,7 @@ const FIELD_CONFIG = {
     label: 'Werbepartner',
     idField: 'id',
     fields: [
-      { key: 'category', label: 'Kategorie', type: 'select', options: ['werkzeug', 'kleidung', 'fahrzeuge', 'sonstiges'] },
+      { key: 'category', label: 'Kategorie', type: 'select-editable', options: ['werkzeug', 'kleidung', 'fahrzeuge', 'sonstiges'], hint: 'Eigene Kategorie? Unten "Eigene Kategorie..." wählen und Namen eintippen.' },
       { key: 'name', label: 'Name', type: 'text', required: true },
       { key: 'tagline', label: 'Slogan / Tagline', type: 'text' },
       { key: 'icon', label: 'Icon', type: 'icon-picker', hint: 'Wird nur angezeigt, wenn weder Logo- noch Banner-Bild gesetzt ist.' },
@@ -659,6 +659,16 @@ function openEditor(table, existing) {
         return '<option value="' + val + '" ' + sel + '>' + lbl + '</option>';
       }).join('');
       row.innerHTML = '<label>' + f.label + '</label><select data-field="' + f.key + '">' + opts + '</select>';
+    } else if (f.type === 'select-editable') {
+      const opts = f.options.map((o) => {
+        const [val, lbl] = Array.isArray(o) ? o : [o, o];
+        return '<option value="' + val + '">' + lbl + '</option>';
+      }).join('') + '<option value="__custom__">Eigene Kategorie...</option>';
+      row.innerHTML =
+        '<label>' + f.label + '</label>' +
+        '<select class="select-editable-select">' + opts + '</select>' +
+        '<input type="text" class="select-editable-custom" placeholder="Eigene Kategorie eingeben" style="display:none; margin-top:8px;">' +
+        '<input type="hidden" data-field="' + f.key + '">';
     } else if (f.type === 'textarea' || f.type === 'json') {
       row.innerHTML = '<label>' + f.label + '</label><textarea rows="' + (f.type === 'json' ? 4 : 2) + '" data-field="' + f.key + '"' + (f.type === 'json' ? ' style="font-family: ui-monospace, monospace;"' : '') + '></textarea>';
     } else if (f.type === 'logo-picker') {
@@ -766,6 +776,43 @@ function openEditor(table, existing) {
       row.querySelector('.color-clear-btn').onclick = () => {
         textInput.value = '';
         sync();
+      };
+    }
+
+    if (f.type === 'select-editable') {
+      const hidden = row.querySelector('[data-field="' + f.key + '"]');
+      const selectEl = row.querySelector('.select-editable-select');
+      const customInput = row.querySelector('.select-editable-custom');
+      const knownValues = f.options.map((o) => (Array.isArray(o) ? o[0] : o));
+
+      const applyFromHidden = () => {
+        const val = hidden.value || '';
+        if (val && !knownValues.includes(val)) {
+          selectEl.value = '__custom__';
+          customInput.style.display = 'block';
+          customInput.value = val;
+        } else {
+          selectEl.value = val || knownValues[0];
+          customInput.style.display = 'none';
+          customInput.value = '';
+          hidden.value = selectEl.value;
+        }
+      };
+      applyFromHidden();
+
+      selectEl.onchange = () => {
+        if (selectEl.value === '__custom__') {
+          customInput.style.display = 'block';
+          customInput.value = '';
+          customInput.focus();
+          hidden.value = '';
+        } else {
+          customInput.style.display = 'none';
+          hidden.value = selectEl.value;
+        }
+      };
+      customInput.oninput = () => {
+        hidden.value = customInput.value.trim();
       };
     }
   });

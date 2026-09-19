@@ -199,6 +199,72 @@
   .toast.error { border-color: var(--danger); color: var(--danger); }
   .hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
   a.hint-link { color: var(--orange); }
+
+  /* --- Logo-Bibliothek --- */
+  .logo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 12px; margin-top: 14px; }
+  .logo-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    text-align: center;
+    position: relative;
+  }
+  .logo-card img { width: 52px; height: 52px; object-fit: contain; background: #fff; border-radius: 8px; }
+  .logo-card .logo-name { font-size: 11px; margin-top: 6px; color: #EAF0F6; word-break: break-word; }
+  .logo-card .logo-cat { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .logo-card .logo-del {
+    position: absolute; top: 4px; right: 4px;
+    background: rgba(0,0,0,0.55); border: none; color: #fff;
+    width: 20px; height: 20px; border-radius: 50%;
+    font-size: 11px; cursor: pointer; line-height: 1;
+  }
+  .logo-category-filters { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; }
+  .logo-category-filters .tab { padding: 6px 12px; font-size: 12px; margin-bottom: 0; }
+  .search-input {
+    width: 100%;
+    padding: 9px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--navy);
+    color: #fff;
+    font-size: 14px;
+  }
+
+  /* --- Logo-Auswahlfeld (in Tipps & Infos) --- */
+  .logo-picker-preview { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .logo-picker-preview img {
+    width: 44px; height: 44px; object-fit: contain;
+    background: #fff; border-radius: 8px; display: none;
+  }
+  .logo-picker-empty { font-size: 12px; color: var(--muted); }
+  .logo-picker-actions { display: flex; gap: 8px; }
+  .logo-picker-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  .logo-picker-modal {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    max-width: 560px;
+    width: 100%;
+    max-height: 82vh;
+    overflow-y: auto;
+  }
+  .logo-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 10px; }
+  .logo-picker-item {
+    cursor: pointer;
+    text-align: center;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px;
+    background: var(--navy);
+  }
+  .logo-picker-item:hover { border-color: var(--orange); }
+  .logo-picker-item img { width: 40px; height: 40px; object-fit: contain; background: #fff; border-radius: 6px; }
+  .logo-picker-item span { display: block; font-size: 10px; color: var(--muted); margin-top: 4px; word-break: break-word; }
 </style>
 </head>
 <body>
@@ -222,6 +288,7 @@
       <div class="tab active" data-tab="ads" onclick="switchTab('ads')">Werbepartner</div>
       <div class="tab" data-tab="infos" onclick="switchTab('infos')">Tipps &amp; Infos</div>
       <div class="tab" data-tab="remote_config" onclick="switchTab('remote_config')">Einstellungen</div>
+      <div class="tab" data-tab="logos" onclick="switchTab('logos')">Logos</div>
     </div>
 
     <div id="tab-ads">
@@ -242,6 +309,49 @@
       <div id="remote_configList"></div>
       <button class="add-btn" onclick="openEditor('remote_config')">+ Neue Einstellung</button>
     </div>
+
+    <div id="tab-logos" style="display:none;">
+      <div class="section-title">Logo-Bibliothek</div>
+      <p class="hint" style="margin-bottom: 14px;">Lade hier Logo-Bilder hoch. Bei "Tipps &amp; Infos" kannst du dann eines davon als Logo auswählen -- über Suchbegriffe (z. B. "hammer") und Kategorien (Werkzeuge, Autos, Sonstiges oder eine eigene) findest du sie leicht wieder.</p>
+
+      <form id="logoUploadForm" class="editor open" style="margin-bottom: 20px;">
+        <div class="row">
+          <label>Bild-Datei</label>
+          <input type="file" id="logoFileInput" accept="image/*" required>
+        </div>
+        <div class="row">
+          <label>Name</label>
+          <input type="text" id="logoNameInput" placeholder="z. B. Hammer rot" required>
+        </div>
+        <div class="row two-col">
+          <div>
+            <label>Kategorie</label>
+            <select id="logoCategorySelect" onchange="onLogoCategoryChange()">
+              <option value="werkzeuge">Werkzeuge</option>
+              <option value="autos">Autos</option>
+              <option value="sonstiges">Sonstiges</option>
+              <option value="__custom__">Eigene Kategorie...</option>
+            </select>
+          </div>
+          <div id="logoCustomCategoryWrap" style="display:none;">
+            <label>Eigene Kategorie</label>
+            <input type="text" id="logoCustomCategoryInput" placeholder="z. B. Elektro">
+          </div>
+        </div>
+        <div class="row">
+          <label>Suchbegriffe (Komma-getrennt)</label>
+          <input type="text" id="logoTagsInput" placeholder="z. B. hammer, werkzeug, schlagen">
+          <div class="hint">Damit findest du das Logo später über die Suche wieder.</div>
+        </div>
+        <div class="actions">
+          <button type="submit" class="btn btn-primary">Hochladen</button>
+        </div>
+      </form>
+
+      <input type="text" class="search-input" id="logoSearchInput" placeholder="Suchen, z. B. hammer" oninput="renderLogoGrid()">
+      <div class="logo-category-filters" id="logoCategoryFilters"></div>
+      <div class="logo-grid" id="logoGrid"></div>
+    </div>
   </main>
 </div>
 
@@ -253,6 +363,9 @@
 // Supabase-Projekt ändert, hier anpassen (Dashboard -> Edge Functions ->
 // admin-content -> URL kopieren).
 const FUNCTION_URL = 'https://beleepsctqfoewxyomjj.supabase.co/functions/v1/admin-content';
+// URL der Edge Function "admin-logos" (Logo-Bibliothek, separat wegen
+// Bild-Upload). Dashboard -> Edge Functions -> admin-logos -> URL kopieren.
+const LOGOS_FUNCTION_URL = 'https://beleepsctqfoewxyomjj.supabase.co/functions/v1/admin-logos';
 
 const FIELD_CONFIG = {
   ads: {
@@ -288,6 +401,7 @@ const FIELD_CONFIG = {
       { key: 'bg_color', label: 'Hintergrundfarbe (optional)', type: 'text', hint: 'Hex-Farbcode ohne #, z. B. 2C5F2D. Leer lassen für die normale dunkle Kartenfarbe.' },
       { key: 'text_color', label: 'Schriftfarbe (optional)', type: 'text', hint: 'Hex-Farbcode ohne #, z. B. FFFFFF. Leer lassen für die normale weiße Schrift.' },
       { key: 'bg_image_url', label: 'Hintergrundbild für die ganze Karte (optional)', type: 'text', hint: 'Füllt die komplette Karte mit einem Bild (leicht abgedunkelt für Lesbarkeit), Text liegt darüber. Ersetzt das Banner-Bild oben.' },
+      { key: 'logo_url', label: 'Logo (aus Logo-Bibliothek)', type: 'logo-picker', hint: 'Optional, zusätzlich zum Icon oben. Falls gesetzt, wird das Logo-Bild statt des Icons angezeigt. Logos verwaltest du im Tab "Logos".' },
       { key: 'sort_order', label: 'Reihenfolge (kleinere Zahl = weiter oben)', type: 'number' },
       { key: 'active', label: 'Sichtbar in der App', type: 'checkbox' },
     ],
@@ -324,7 +438,8 @@ const FIELD_CONFIG = {
 };
 
 let password = '';
-let dataCache = { ads: [], infos: [], remote_config: [] };
+let dataCache = { ads: [], infos: [], remote_config: [], logos: [] };
+let logoCategoryFilter = 'alle';
 
 function toast(msg, isError) {
   const t = document.getElementById('toast');
@@ -340,6 +455,17 @@ async function callApi(table, action, extra) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ password, table, action, ...extra }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || ('Fehler ' + res.status));
+  return body;
+}
+
+async function callLogosApi(action, extra) {
+  const res = await fetch(LOGOS_FUNCTION_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password, action, ...extra }),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error || ('Fehler ' + res.status));
@@ -381,6 +507,18 @@ function showApp() {
   document.getElementById('app').style.display = 'block';
   renderList('ads');
   Object.keys(FIELD_CONFIG).filter((t) => t !== 'ads').forEach((t) => loadTable(t));
+  loadLogos();
+}
+
+async function loadLogos() {
+  try {
+    const body = await callLogosApi('list');
+    dataCache.logos = body.data || [];
+    renderLogoCategoryFilters();
+    renderLogoGrid();
+  } catch (e) {
+    toast(e.message, true);
+  }
 }
 
 async function loadTable(table) {
@@ -395,7 +533,8 @@ async function loadTable(table) {
 
 function switchTab(tab) {
   document.querySelectorAll('.tab').forEach((el) => el.classList.toggle('active', el.dataset.tab === tab));
-  Object.keys(FIELD_CONFIG).forEach((t) => {
+  const allTabs = Object.keys(FIELD_CONFIG).concat(['logos']);
+  allTabs.forEach((t) => {
     document.getElementById('tab-' + t).style.display = t === tab ? 'block' : 'none';
   });
 }
@@ -464,6 +603,15 @@ function openEditor(table, existing) {
       row.innerHTML = '<label>' + f.label + '</label><select data-field="' + f.key + '">' + opts + '</select>';
     } else if (f.type === 'textarea' || f.type === 'json') {
       row.innerHTML = '<label>' + f.label + '</label><textarea rows="' + (f.type === 'json' ? 4 : 2) + '" data-field="' + f.key + '"' + (f.type === 'json' ? ' style="font-family: ui-monospace, monospace;"' : '') + '></textarea>';
+    } else if (f.type === 'logo-picker') {
+      row.innerHTML =
+        '<label>' + f.label + '</label>' +
+        '<div class="logo-picker-preview"><img alt=""><span class="logo-picker-empty">Kein Logo gewählt</span></div>' +
+        '<div class="logo-picker-actions">' +
+          '<button type="button" class="btn btn-secondary logo-picker-choose">Logo wählen</button>' +
+          '<button type="button" class="btn btn-secondary logo-picker-clear">Entfernen</button>' +
+        '</div>' +
+        '<input type="hidden" data-field="' + f.key + '">';
     } else {
       row.innerHTML = '<label>' + f.label + '</label><input type="' + (f.type === 'number' ? 'number' : 'text') + '" data-field="' + f.key + '">';
     }
@@ -486,6 +634,33 @@ function openEditor(table, existing) {
         input.value = value != null ? value : '';
       }
       if (f.disabledOnEdit && existing) input.disabled = true;
+    }
+
+    if (f.type === 'logo-picker') {
+      const hidden = row.querySelector('[data-field="' + f.key + '"]');
+      const img = row.querySelector('.logo-picker-preview img');
+      const empty = row.querySelector('.logo-picker-empty');
+      const syncPreview = () => {
+        if (hidden.value) {
+          img.src = hidden.value;
+          img.style.display = 'inline-block';
+          empty.style.display = 'none';
+        } else {
+          img.style.display = 'none';
+          empty.style.display = 'inline';
+        }
+      };
+      syncPreview();
+      row.querySelector('.logo-picker-choose').onclick = () => {
+        openLogoPickerModal((chosenUrl) => {
+          hidden.value = chosenUrl;
+          syncPreview();
+        });
+      };
+      row.querySelector('.logo-picker-clear').onclick = () => {
+        hidden.value = '';
+        syncPreview();
+      };
     }
   });
 
@@ -513,6 +688,8 @@ function openEditor(table, existing) {
         } catch (e) {
           jsonError = 'Feld "' + f.label + '": kein gültiges JSON (' + e.message + ')';
         }
+      } else if (f.type === 'logo-picker') {
+        row[f.key] = el.value || null;
       } else {
         row[f.key] = el.value;
       }
@@ -530,6 +707,177 @@ function openEditor(table, existing) {
 
   document.getElementById(containerId).appendChild(form);
   form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// ---- Logo-Bibliothek ----
+
+function onLogoCategoryChange() {
+  const sel = document.getElementById('logoCategorySelect').value;
+  document.getElementById('logoCustomCategoryWrap').style.display = sel === '__custom__' ? 'block' : 'none';
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result; // "data:image/png;base64,AAAA..."
+      const comma = result.indexOf(',');
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+document.getElementById('logoUploadForm').onsubmit = async (ev) => {
+  ev.preventDefault();
+  const fileInput = document.getElementById('logoFileInput');
+  const file = fileInput.files[0];
+  const name = document.getElementById('logoNameInput').value.trim();
+  const catSelect = document.getElementById('logoCategorySelect').value;
+  const category = catSelect === '__custom__'
+    ? (document.getElementById('logoCustomCategoryInput').value.trim() || 'sonstiges')
+    : catSelect;
+  const tags = document.getElementById('logoTagsInput').value
+    .split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
+
+  if (!file || !name) { toast('Bild und Name sind Pflicht.', true); return; }
+
+  try {
+    const fileBase64 = await fileToBase64(file);
+    await callLogosApi('upload', {
+      name,
+      category,
+      tags,
+      fileName: file.name,
+      contentType: file.type || 'image/png',
+      fileBase64,
+    });
+    toast('Logo hochgeladen.');
+    document.getElementById('logoUploadForm').reset();
+    document.getElementById('logoCustomCategoryWrap').style.display = 'none';
+    loadLogos();
+  } catch (e) {
+    toast(e.message, true);
+  }
+};
+
+function renderLogoCategoryFilters() {
+  const cats = Array.from(new Set((dataCache.logos || []).map((l) => l.category || 'sonstiges'))).sort();
+  const all = ['alle'].concat(cats);
+  const container = document.getElementById('logoCategoryFilters');
+  container.innerHTML = '';
+  all.forEach((c) => {
+    const el = document.createElement('div');
+    el.className = 'tab' + (logoCategoryFilter === c ? ' active' : '');
+    el.textContent = c === 'alle' ? 'Alle' : c;
+    el.onclick = () => { logoCategoryFilter = c; renderLogoCategoryFilters(); renderLogoGrid(); };
+    container.appendChild(el);
+  });
+}
+
+function filterLogos(list, query, category) {
+  const q = (query || '').trim().toLowerCase();
+  return list.filter((l) => {
+    if (category && category !== 'alle' && (l.category || 'sonstiges') !== category) return false;
+    if (!q) return true;
+    const haystack = (l.name + ' ' + (l.tags || []).join(' ')).toLowerCase();
+    return haystack.includes(q);
+  });
+}
+
+function renderLogoGrid() {
+  const grid = document.getElementById('logoGrid');
+  if (!grid) return;
+  const q = document.getElementById('logoSearchInput').value;
+  const rows = filterLogos(dataCache.logos || [], q, logoCategoryFilter);
+  grid.innerHTML = '';
+  if (!rows.length) {
+    grid.innerHTML = '<div class="empty">Keine Logos gefunden.</div>';
+    return;
+  }
+  rows.forEach((row) => {
+    const card = document.createElement('div');
+    card.className = 'logo-card';
+    card.innerHTML =
+      '<button class="logo-del" title="Löschen">✕</button>' +
+      '<img src="' + row.url + '" alt="">' +
+      '<div class="logo-name"></div>' +
+      '<div class="logo-cat"></div>';
+    card.querySelector('.logo-name').textContent = row.name;
+    card.querySelector('.logo-cat').textContent = row.category;
+    card.querySelector('.logo-del').onclick = () => deleteLogo(row);
+    grid.appendChild(card);
+  });
+}
+
+async function deleteLogo(row) {
+  if (!confirm('Logo "' + row.name + '" wirklich löschen?')) return;
+  try {
+    await callLogosApi('delete', { id: row.id });
+    toast('Gelöscht.');
+    loadLogos();
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+// Modal zum Auswählen eines Logos, genutzt vom "logo-picker"-Feld bei
+// Tipps & Infos. onSelect(url) wird beim Klick auf ein Logo aufgerufen.
+function openLogoPickerModal(onSelect) {
+  const overlay = document.createElement('div');
+  overlay.className = 'logo-picker-overlay';
+  overlay.innerHTML =
+    '<div class="logo-picker-modal">' +
+      '<div class="section-title" style="margin-top:0;">Logo wählen</div>' +
+      '<input type="text" class="search-input lp-search" placeholder="Suchen, z. B. hammer">' +
+      '<div class="logo-category-filters lp-cats"></div>' +
+      '<div class="logo-picker-grid lp-grid"></div>' +
+      '<div class="actions"><button type="button" class="btn btn-secondary lp-close">Schließen</button></div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+
+  let cat = 'alle';
+  const search = overlay.querySelector('.lp-search');
+  const catsEl = overlay.querySelector('.lp-cats');
+  const gridEl = overlay.querySelector('.lp-grid');
+
+  function renderCats() {
+    const cats = Array.from(new Set((dataCache.logos || []).map((l) => l.category || 'sonstiges'))).sort();
+    const all = ['alle'].concat(cats);
+    catsEl.innerHTML = '';
+    all.forEach((c) => {
+      const el = document.createElement('div');
+      el.className = 'tab' + (cat === c ? ' active' : '');
+      el.textContent = c === 'alle' ? 'Alle' : c;
+      el.onclick = () => { cat = c; renderCats(); renderGrid(); };
+      catsEl.appendChild(el);
+    });
+  }
+
+  function renderGrid() {
+    const rows = filterLogos(dataCache.logos || [], search.value, cat);
+    gridEl.innerHTML = '';
+    if (!rows.length) {
+      gridEl.innerHTML = '<div class="empty">Keine Logos gefunden.</div>';
+      return;
+    }
+    rows.forEach((row) => {
+      const item = document.createElement('div');
+      item.className = 'logo-picker-item';
+      item.innerHTML = '<img src="' + row.url + '" alt=""><span></span>';
+      item.querySelector('span').textContent = row.name;
+      item.onclick = () => { onSelect(row.url); overlay.remove(); };
+      gridEl.appendChild(item);
+    });
+  }
+
+  search.oninput = renderGrid;
+  overlay.querySelector('.lp-close').onclick = () => overlay.remove();
+  overlay.onclick = (ev) => { if (ev.target === overlay) overlay.remove(); };
+
+  renderCats();
+  renderGrid();
 }
 
 // Passwort aus vorherigem Besuch übernehmen, falls vorhanden

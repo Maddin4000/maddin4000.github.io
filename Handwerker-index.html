@@ -434,7 +434,7 @@ const FIELD_CONFIG = {
       { key: 'name', label: 'Name', type: 'text', required: true },
       { key: 'tagline', label: 'Slogan / Tagline', type: 'text' },
       { key: 'icon', label: 'Icon', type: 'icon-picker', hint: 'Wird nur angezeigt, wenn weder Logo- noch Banner-Bild gesetzt ist.' },
-      { key: 'logo_url', label: 'Logo-Bild-URL (optional)', type: 'text', hint: 'Kleines quadratisches Logo (z. B. aus Supabase Storage). Leer lassen für Icon statt Logo.' },
+      { key: 'logo_url', label: 'Logo (aus Logo-Bibliothek)', type: 'logo-picker', hint: 'Optional, zusätzlich zum Icon oben. Falls gesetzt, wird das Logo-Bild statt des Icons angezeigt. Logos verwaltest du im Tab "Logos".' },
       { key: 'image_url', label: 'Banner-Bild-URL (optional)', type: 'text', hint: 'Breites Bild oben in der Karte, wie ein richtiges Werbebanner. Wird ignoriert, wenn unten ein Hintergrundbild gesetzt ist.' },
       { key: 'bg_color', label: 'Hintergrundfarbe (optional)', type: 'color-picker', hint: 'Leer lassen für die normale dunkle Kartenfarbe.' },
       { key: 'text_color', label: 'Schriftfarbe (optional)', type: 'color-picker', hint: 'Leer lassen für die normale weiße Schrift.' },

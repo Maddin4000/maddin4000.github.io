@@ -404,6 +404,11 @@
         </div>
       </form>
 
+      <div class="row" style="margin-bottom: 14px;">
+        <button type="button" class="btn btn-secondary" id="simpleIconsImportBtn" onclick="importSimpleIcons()">Marken-Logos importieren (Simple Icons)</button>
+        <div class="hint">Importiert einmalig über 3.000 bekannte Marken-Logos (Bosch, BMW, Audi, VW, Ford, u.v.m.) in die Kategorie "marken" -- danach über die Suche wiederfindbar. Dauert ein paar Minuten, der Tab muss dabei offen bleiben. Ein zweiter Klick überspringt bereits importierte Logos.</div>
+      </div>
+
       <input type="text" class="search-input" id="logoSearchInput" placeholder="Suchen, z. B. hammer" oninput="renderLogoGrid()">
       <div class="logo-category-filters" id="logoCategoryFilters"></div>
       <div class="logo-grid" id="logoGrid"></div>
@@ -1003,6 +1008,75 @@ document.getElementById('logoUploadForm').onsubmit = async (ev) => {
   document.getElementById('logoCustomCategoryWrap').style.display = 'none';
   loadLogos();
 };
+
+// Einmaliger Bulk-Import bekannter Marken-Logos (Simple Icons, CC0-Icon-Set)
+// in die Logo-Bibliothek. Lädt die vorbereitete Datei simple-icons-import.json
+// (liegt neben dieser Seite) und lädt jedes Logo über die admin-logos-Funktion
+// hoch -- mit ein paar Uploads gleichzeitig, damit es nicht Stunden dauert.
+async function importSimpleIcons() {
+  const btn = document.getElementById('simpleIconsImportBtn');
+  btn.disabled = true;
+  const originalText = btn.textContent;
+
+  try {
+    btn.textContent = 'Lade Liste...';
+    const res = await fetch('simple-icons-import.json');
+    if (!res.ok) throw new Error('simple-icons-import.json nicht gefunden (Status ' + res.status + ')');
+    const allEntries = await res.json();
+
+    const existing = new Set(
+      (dataCache.logos || [])
+        .filter((l) => l.category === 'marken')
+        .map((l) => l.name)
+    );
+    const entries = allEntries.filter((e) => !existing.has(e.name));
+
+    if (!entries.length) {
+      toast('Alle Marken-Logos sind schon importiert.');
+      return;
+    }
+    if (!confirm(entries.length + ' Marken-Logos werden jetzt importiert. Das dauert ein paar Minuten -- diesen Tab bitte offen lassen. Fortfahren?')) {
+      return;
+    }
+
+    let done = 0;
+    let failed = 0;
+    const CONCURRENCY = 6;
+    let nextIndex = 0;
+
+    const updateProgress = () => {
+      btn.textContent = 'Importiere (' + (done + failed) + '/' + entries.length + ')...';
+    };
+    updateProgress();
+
+    async function worker() {
+      while (nextIndex < entries.length) {
+        const entry = entries[nextIndex++];
+        try {
+          await callLogosApi('upload', entry);
+          done++;
+        } catch (e) {
+          failed++;
+        }
+        updateProgress();
+      }
+    }
+
+    await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+
+    await loadLogos();
+    if (failed) {
+      toast(done + ' Marken-Logos importiert, ' + failed + ' fehlgeschlagen (nochmal klicken zum Wiederholen).', true);
+    } else {
+      toast(done + ' Marken-Logos importiert.');
+    }
+  } catch (e) {
+    toast('Import fehlgeschlagen: ' + e.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
 
 function renderLogoCategoryFilters() {
   const cats = Array.from(new Set((dataCache.logos || []).map((l) => l.category || 'sonstiges'))).sort();

@@ -326,6 +326,7 @@
     <div class="tabs">
       <div class="tab active" data-tab="ads" onclick="switchTab('ads')">Werbepartner</div>
       <div class="tab" data-tab="infos" onclick="switchTab('infos')">Tipps &amp; Infos</div>
+      <div class="tab" data-tab="places" onclick="switchTab('places')">Regionales</div>
       <div class="tab" data-tab="remote_config" onclick="switchTab('remote_config')">Einstellungen</div>
       <div class="tab" data-tab="logos" onclick="switchTab('logos')">Logos</div>
     </div>
@@ -340,6 +341,13 @@
       <div class="section-title">Tipps, Events, News &amp; Jobs</div>
       <div id="infosList"></div>
       <button class="add-btn" onclick="openEditor('infos')">+ Neuer Eintrag</button>
+    </div>
+
+    <div id="tab-places" style="display:none;">
+      <div class="section-title">Regionales (Imbisse, Unterkünfte, Camping …)</div>
+      <p class="hint" style="margin-bottom: 14px;">Diese Einträge erscheinen in der App unter „Entdecken → Regionales“ mit Umkreissuche. Lat/Lng kannst du leer lassen – sie werden beim Speichern automatisch aus Adresse/PLZ/Ort ermittelt (OpenStreetMap).</p>
+      <div id="placesList"></div>
+      <button class="add-btn" onclick="openEditor('places')">+ Neuer Eintrag</button>
     </div>
 
     <div id="tab-remote_config" style="display:none;">
@@ -471,6 +479,28 @@ const FIELD_CONFIG = {
     titleField: 'title',
     subtitleField: 'subtitle',
   },
+  places: {
+    label: 'Regionales',
+    idField: 'id',
+    fields: [
+      { key: 'category', label: 'Kategorie', type: 'select-editable', options: [['imbiss', 'Imbiss'], ['restaurant', 'Restaurant'], ['unterkunft', 'Unterkunft'], ['camping', 'Camping'], ['sonstiges', 'Sonstiges']], hint: 'Für die App-Filter bitte eine der Standard-Kategorien nehmen.' },
+      { key: 'name', label: 'Name', type: 'text', required: true },
+      { key: 'description', label: 'Beschreibung', type: 'textarea' },
+      { key: 'address', label: 'Straße & Hausnummer', type: 'text' },
+      { key: 'plz', label: 'PLZ', type: 'text' },
+      { key: 'city', label: 'Ort', type: 'text' },
+      { key: 'lat', label: 'Breitengrad (optional, wird automatisch ermittelt)', type: 'decimal' },
+      { key: 'lng', label: 'Längengrad (optional, wird automatisch ermittelt)', type: 'decimal' },
+      { key: 'phone', label: 'Telefon (optional)', type: 'text' },
+      { key: 'website', label: 'Webseite (optional)', type: 'text' },
+      { key: 'image_url', label: 'Bild-URL (optional)', type: 'text' },
+      { key: 'sort_order', label: 'Reihenfolge (kleinere Zahl = weiter oben)', type: 'number' },
+      { key: 'active', label: 'Sichtbar in der App', type: 'checkbox' },
+    ],
+    titleField: 'name',
+    subtitleField: 'description',
+    subtitleRender: (row) => [row.category, [row.plz, row.city].filter(Boolean).join(' ')].filter(Boolean).join(' · '),
+  },
   remote_config: {
     label: 'Einstellungen',
     idField: 'key',
@@ -501,7 +531,7 @@ const FIELD_CONFIG = {
 };
 
 let password = '';
-let dataCache = { ads: [], infos: [], remote_config: [], logos: [] };
+let dataCache = { ads: [], infos: [], places: [], remote_config: [], logos: [] };
 let logoCategoryFilter = 'alle';
 
 function toast(msg, isError) {
@@ -637,6 +667,22 @@ async function deleteRow(table, row) {
   } catch (e) {
     toast(e.message, true);
   }
+}
+
+// Adresse -> Koordinaten (OpenStreetMap Nominatim, kostenlos, ~1 Anfrage/Sek.)
+async function geocodePlace(row) {
+  const queries = [
+    [row.address, row.plz, row.city],
+    [row.plz, row.city],
+  ].map((parts) => parts.filter(Boolean).join(', ')).filter((q) => q);
+  for (const q of queries) {
+    const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=de,at,ch&q=' + encodeURIComponent(q);
+    const res = await fetch(url, { headers: { 'Accept-Language': 'de' } });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (data && data[0]) return { lat: Number(data[0].lat), lng: Number(data[0].lon) };
+  }
+  return null;
 }
 
 function openEditor(table, existing) {
@@ -840,6 +886,9 @@ function openEditor(table, existing) {
         row[f.key] = el.checked;
       } else if (f.type === 'number') {
         row[f.key] = el.value === '' ? 0 : Number(el.value);
+      } else if (f.type === 'decimal') {
+        const v = el.value.trim().replace(',', '.');
+        row[f.key] = v === '' || isNaN(Number(v)) ? null : Number(v);
       } else if (f.type === 'json') {
         try {
           row[f.key] = JSON.parse(el.value);
@@ -853,6 +902,20 @@ function openEditor(table, existing) {
       }
     });
     if (jsonError) { toast(jsonError, true); return; }
+    if (table === 'places') {
+      for (const k of ['address', 'plz', 'city', 'phone', 'website', 'image_url', 'description']) {
+        if (typeof row[k] === 'string') row[k] = row[k].trim() || null;
+      }
+      if (row.lat == null || row.lng == null) {
+        try {
+          const g = await geocodePlace(row);
+          if (g) { row.lat = g.lat; row.lng = g.lng; }
+          else { toast('Adresse nicht gefunden – bitte Lat/Lng manuell eintragen (sonst erscheint der Eintrag nicht in der Umkreissuche).', true); }
+        } catch (e) {
+          toast('Geokodierung fehlgeschlagen: ' + e.message, true);
+        }
+      }
+    }
     try {
       await callApi(table, 'upsert', { row });
       toast('Gespeichert.');

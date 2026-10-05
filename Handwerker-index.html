@@ -327,6 +327,7 @@
       <div class="tab active" data-tab="ads" onclick="switchTab('ads')">Werbepartner</div>
       <div class="tab" data-tab="infos" onclick="switchTab('infos')">Tipps &amp; Infos</div>
       <div class="tab" data-tab="places" onclick="switchTab('places')">Regionales</div>
+      <div class="tab" data-tab="expert_profiles" onclick="switchTab('expert_profiles')">Meister</div>
       <div class="tab" data-tab="remote_config" onclick="switchTab('remote_config')">Einstellungen</div>
       <div class="tab" data-tab="logos" onclick="switchTab('logos')">Logos</div>
     </div>
@@ -348,6 +349,12 @@
       <p class="hint" style="margin-bottom: 14px;">Diese Einträge erscheinen in der App unter „Entdecken → Regionales“ mit Umkreissuche. Lat/Lng kannst du leer lassen – sie werden beim Speichern automatisch aus Adresse/PLZ/Ort ermittelt (OpenStreetMap).</p>
       <div id="placesList"></div>
       <button class="add-btn" onclick="openEditor('places')">+ Neuer Eintrag</button>
+    </div>
+
+    <div id="tab-expert_profiles" style="display:none;">
+      <div class="section-title">Meister per Video – Experten freischalten</div>
+      <p class="hint" style="margin-bottom: 14px;">Hier erscheinen alle, die sich in der App als Experte eingetragen haben. Erst mit gesetztem Haken „Freigeschaltet“ sind sie in der App sichtbar und buchbar. Prüfe vorher Headline und Qualifikation.</p>
+      <div id="expert_profilesList"></div>
     </div>
 
     <div id="tab-remote_config" style="display:none;">
@@ -479,6 +486,22 @@ const FIELD_CONFIG = {
     titleField: 'title',
     subtitleField: 'subtitle',
   },
+  expert_profiles: {
+    label: 'Meister',
+    idField: 'user_id',
+    fields: [
+      { key: 'user_id', label: 'Nutzer-ID', type: 'text', disabledOnEdit: true },
+      { key: 'approved', label: 'Freigeschaltet (in der App sichtbar & buchbar)', type: 'checkbox' },
+      { key: 'is_active', label: 'Vom Experten aktiv geschaltet', type: 'checkbox' },
+      { key: 'headline', label: 'Überschrift', type: 'text' },
+      { key: 'bio', label: 'Über mich', type: 'textarea' },
+      { key: 'qualification', label: 'Qualifikation', type: 'select', options: [['meister', 'Meister'], ['geselle', 'Geselle'], ['hobby', 'Erfahrener Hobby-Handwerker']] },
+      { key: 'price_15min_cents', label: 'Preis pro 15 Min. in Cent (500 = 5 €)', type: 'number' },
+    ],
+    titleField: 'headline',
+    subtitleField: 'bio',
+    subtitleRender: (row) => (row.approved ? '✅ freigeschaltet' : '⏳ wartet auf Freischaltung') + ' · ' + ((row.price_15min_cents || 0) / 100).toFixed(2).replace('.', ',') + ' €/15 Min. · ' + (row.qualification || ''),
+  },
   places: {
     label: 'Regionales',
     idField: 'id',
@@ -531,7 +554,7 @@ const FIELD_CONFIG = {
 };
 
 let password = '';
-let dataCache = { ads: [], infos: [], places: [], remote_config: [], logos: [] };
+let dataCache = { ads: [], infos: [], places: [], expert_profiles: [], remote_config: [], logos: [] };
 let logoCategoryFilter = 'alle';
 
 function toast(msg, isError) {

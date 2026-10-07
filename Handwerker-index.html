@@ -347,6 +347,25 @@
     <div id="tab-places" style="display:none;">
       <div class="section-title">Regionales (Imbisse, Unterkünfte, Camping …)</div>
       <p class="hint" style="margin-bottom: 14px;">Diese Einträge erscheinen in der App unter „Entdecken → Regionales“ mit Umkreissuche. Lat/Lng kannst du leer lassen – sie werden beim Speichern automatisch aus Adresse/PLZ/Ort ermittelt (OpenStreetMap).</p>
+      <div class="card" style="display:block; margin-bottom:16px;">
+        <b>Automatisch aus OpenStreetMap importieren</b>
+        <p class="hint" style="margin:6px 0 10px;">Holt Gastronomie, Unterkünfte und Camping im Umkreis einer PLZ. Die Einträge landen als <b>Entwurf</b> (nicht sichtbar). Prüfe sie unten (ausgegraut) und schalte sie frei. Bereits vorhandene Einträge werden nicht überschrieben.</p>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
+          <input id="impPlz" placeholder="PLZ, z. B. 26215" maxlength="5" style="width:130px;">
+          <select id="impRadius"><option value="5">5 km</option><option value="10">10 km</option><option value="15" selected>15 km</option><option value="25">25 km</option><option value="30">30 km</option></select>
+        </div>
+        <div style="display:flex; gap:14px; flex-wrap:wrap; margin-bottom:10px; font-size:14px;">
+          <label><input type="checkbox" id="impGastro" checked> Gastronomie</label>
+          <label><input type="checkbox" id="impUnterkunft" checked> Unterkünfte</label>
+          <label><input type="checkbox" id="impCamping" checked> Camping</label>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="add-btn" style="margin:0;" onclick="importPlaces()">Importieren</button>
+          <button class="add-btn" style="margin:0;" onclick="placesBulk('publish_drafts')">Alle Entwürfe freigeben</button>
+          <button class="add-btn" style="margin:0; background:#b91c1c;" onclick="placesBulk('delete_drafts')">Alle Entwürfe löschen</button>
+        </div>
+        <div id="impResult" class="hint" style="margin-top:10px;"></div>
+      </div>
       <div id="placesList"></div>
       <button class="add-btn" onclick="openEditor('places')">+ Neuer Eintrag</button>
     </div>
@@ -443,6 +462,7 @@ const FUNCTION_URL = 'https://beleepsctqfoewxyomjj.supabase.co/functions/v1/admi
 // Bild-Upload). Dashboard -> Edge Functions -> admin-logos -> URL kopieren.
 const LOGOS_FUNCTION_URL = 'https://beleepsctqfoewxyomjj.supabase.co/functions/v1/admin-logos';
 // URL der Edge Function "send-broadcast-push" (Push-Rundruf an alle Nutzer).
+const IMPORT_PLACES_URL = 'https://beleepsctqfoewxyomjj.supabase.co/functions/v1/import-places';
 const BROADCAST_FUNCTION_URL = 'https://beleepsctqfoewxyomjj.supabase.co/functions/v1/send-broadcast-push';
 
 const FIELD_CONFIG = {
@@ -678,6 +698,51 @@ function renderList(table) {
     delBtn.onclick = () => deleteRow(table, row);
     container.appendChild(card);
   });
+}
+
+
+async function callImport(payload) {
+  const res = await fetch(IMPORT_PLACES_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(Object.assign({ password }, payload)),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || ('Fehler ' + res.status));
+  return data;
+}
+
+async function importPlaces() {
+  const out = document.getElementById('impResult');
+  const plz = document.getElementById('impPlz').value.trim();
+  const groups = [];
+  if (document.getElementById('impGastro').checked) groups.push('gastro');
+  if (document.getElementById('impUnterkunft').checked) groups.push('unterkunft');
+  if (document.getElementById('impCamping').checked) groups.push('camping');
+  if (!/^\d{5}$/.test(plz)) { toast('Bitte eine 5-stellige PLZ eingeben.', true); return; }
+  if (!groups.length) { toast('Bitte mindestens eine Kategorie wählen.', true); return; }
+  out.textContent = 'Importiere … (kann bis zu 40 Sekunden dauern)';
+  try {
+    const g = await geocodePlace({ plz, city: 'Deutschland' });
+    if (!g) { out.textContent = ''; toast('PLZ ' + plz + ' wurde nicht gefunden.', true); return; }
+    const r = await callImport({ action: 'import', lat: g.lat, lng: g.lng, radius_km: Number(document.getElementById('impRadius').value), groups });
+    out.textContent = r.inserted + ' neue Entwürfe angelegt (' + r.found + ' gefunden, ' + r.skipped_existing + ' schon vorhanden)' + (r.truncated ? ' – Ergebnis war begrenzt, ggf. kleineren Umkreis wählen.' : '.');
+    toast('Import fertig.');
+    await loadTable('places');
+  } catch (e) {
+    out.textContent = '';
+    toast(e.message, true);
+  }
+}
+
+async function placesBulk(action) {
+  const msg = action === 'publish_drafts' ? 'Alle importierten Entwürfe in der App sichtbar machen?' : 'Alle importierten, noch nicht freigegebenen Entwürfe löschen?';
+  if (!confirm(msg)) return;
+  try {
+    const r = await callImport({ action });
+    toast((r.published != null ? r.published + ' freigegeben.' : r.deleted + ' gelöscht.'));
+    await loadTable('places');
+  } catch (e) { toast(e.message, true); }
 }
 
 async function deleteRow(table, row) {

@@ -850,7 +850,7 @@ async function bulkTile(bbox, groups, depth, stats) {
     const mLat = (s + n) / 2, mLng = (w + e) / 2;
     for (const sub of [[s, w, mLat, mLng], [s, mLng, mLat, e], [mLat, w, n, mLng], [mLat, mLng, n, e]]) {
       if (bulkStopFlag) return;
-      await sleep(3000);
+      await sleep(8000);
       await bulkTile(sub, groups, depth + 1, stats);
     }
     return;
@@ -883,18 +883,23 @@ async function bulkImport() {
     if (doneList.includes(i)) continue;
     out.textContent = 'Kachel ' + (i + 1) + ' von ' + BULK_TILES.length + ' … bisher ' + stats.inserted + ' neue Einträge (' + Math.round((Date.now() - t0) / 60000) + ' Min.)';
     let ok = false;
-    for (let attempt = 0; attempt < 2 && !ok && !bulkStopFlag; attempt++) {
+    const waits = [30, 60, 120, 180];
+    for (let attempt = 0; attempt <= waits.length && !ok && !bulkStopFlag; attempt++) {
       try {
         await bulkTile(BULK_TILES[i], groups, 0, stats);
         ok = true;
       } catch (e) {
-        out.textContent = 'Kachel ' + (i + 1) + ': ' + e.message + ' – warte 20 s und versuche es erneut …';
-        await sleep(20000);
+        if (attempt === waits.length) { out.textContent = 'Kachel ' + (i + 1) + ' übersprungen: ' + e.message; break; }
+        // Overpass drosselt (429) oder ist überlastet (504): länger warten, dann erneut
+        for (let sec = waits[attempt]; sec > 0 && !bulkStopFlag; sec--) {
+          out.textContent = 'Kachel ' + (i + 1) + ': OpenStreetMap ist gerade ausgelastet – neuer Versuch in ' + sec + ' s (Versuch ' + (attempt + 2) + ' von ' + (waits.length + 1) + ') …';
+          await sleep(1000);
+        }
       }
     }
     if (ok) { doneList.push(i); bulkSetDone(doneList); }
     else if (!bulkStopFlag) stats.failed.push(i + 1);
-    await sleep(4000);
+    await sleep(10000);
   }
   bulkRunning = false;
   const left = BULK_TILES.length - bulkDone().length;

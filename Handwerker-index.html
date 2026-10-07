@@ -712,21 +712,93 @@ async function callImport(payload) {
   return data;
 }
 
+const OSM_FILTERS = {
+  gastro: ['["amenity"~"^(restaurant|cafe|fast_food|biergarten|pub|ice_cream)$"]', '["shop"="bakery"]'],
+  unterkunft: ['["tourism"~"^(hotel|guest_house|apartment|hostel|motel|chalet)$"]'],
+  camping: ['["tourism"~"^(camp_site|caravan_site)$"]'],
+};
+const OSM_KIND = {
+  restaurant: 'Restaurant', cafe: 'Café', fast_food: 'Imbiss', biergarten: 'Biergarten', pub: 'Kneipe', ice_cream: 'Eisdiele',
+  hotel: 'Hotel', guest_house: 'Gästehaus / Pension', apartment: 'Ferienwohnung', hostel: 'Hostel', motel: 'Motel', chalet: 'Ferienhaus',
+  camp_site: 'Campingplatz', caravan_site: 'Wohnmobilstellplatz', bakery: 'Bäckerei',
+};
+const OVERPASS_MIRRORS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
+];
+
+function osmCategory(t) {
+  if (t.tourism === 'camp_site' || t.tourism === 'caravan_site') return 'camping';
+  if (t.tourism) return 'unterkunft';
+  if (t.amenity === 'fast_food' || t.amenity === 'ice_cream' || t.shop === 'bakery') return 'imbiss';
+  return 'restaurant';
+}
+
+function osmToRow(el) {
+  const t = el.tags || {};
+  const name = (t.name || '').trim();
+  const lat = el.lat != null ? el.lat : (el.center && el.center.lat);
+  const lng = el.lon != null ? el.lon : (el.center && el.center.lon);
+  if (!name || lat == null || lng == null) return null;
+  const kind = OSM_KIND[t.amenity] || OSM_KIND[t.tourism] || OSM_KIND[t.shop] || '';
+  const desc = [kind, t.cuisine ? 'Küche: ' + t.cuisine.replace(/;/g, ', ').replace(/_/g, ' ') : '', t.opening_hours ? 'Öffnungszeiten: ' + t.opening_hours : ''].filter(Boolean).join(' · ');
+  return {
+    osm_id: el.type + '/' + el.id,
+    category: osmCategory(t),
+    name,
+    description: desc || null,
+    address: [t['addr:street'], t['addr:housenumber']].filter(Boolean).join(' ') || null,
+    plz: t['addr:postcode'] || null,
+    city: t['addr:city'] || t['addr:suburb'] || t['addr:place'] || null,
+    lat, lng,
+    phone: t.phone || t['contact:phone'] || null,
+    website: t.website || t['contact:website'] || null,
+  };
+}
+
+async function fetchOverpass(query, out) {
+  const failures = [];
+  for (const url of OVERPASS_MIRRORS) {
+    const host = new URL(url).host;
+    out.textContent = 'Frage ' + host + ' ab … (bis zu 40 Sekunden)';
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 40000);
+      const res = await fetch(url, { method: 'POST', body: 'data=' + encodeURIComponent(query), signal: ctrl.signal });
+      clearTimeout(timer);
+      if (res.ok) return await res.json();
+      failures.push(host + ': ' + res.status);
+    } catch (e) {
+      failures.push(host + ': ' + (e.name === 'AbortError' ? 'Zeitüberschreitung' : e.message));
+    }
+  }
+  throw new Error('OpenStreetMap nicht erreichbar (' + failures.join('; ') + ').');
+}
+
 async function importPlaces() {
   const out = document.getElementById('impResult');
   const plz = document.getElementById('impPlz').value.trim();
+  const radiusKm = Number(document.getElementById('impRadius').value);
   const groups = [];
   if (document.getElementById('impGastro').checked) groups.push('gastro');
   if (document.getElementById('impUnterkunft').checked) groups.push('unterkunft');
   if (document.getElementById('impCamping').checked) groups.push('camping');
   if (!/^\d{5}$/.test(plz)) { toast('Bitte eine 5-stellige PLZ eingeben.', true); return; }
   if (!groups.length) { toast('Bitte mindestens eine Kategorie wählen.', true); return; }
-  out.textContent = 'Importiere … (kann bis zu 40 Sekunden dauern)';
   try {
+    out.textContent = 'Suche PLZ …';
     const g = await geocodePlace({ plz, city: 'Deutschland' });
     if (!g) { out.textContent = ''; toast('PLZ ' + plz + ' wurde nicht gefunden.', true); return; }
-    const r = await callImport({ action: 'import', lat: g.lat, lng: g.lng, radius_km: Number(document.getElementById('impRadius').value), groups });
-    out.textContent = r.inserted + ' neue Entwürfe angelegt (' + r.found + ' gefunden, ' + r.skipped_existing + ' schon vorhanden)' + (r.truncated ? ' – Ergebnis war begrenzt, ggf. kleineren Umkreis wählen.' : '.');
+    const around = '(around:' + Math.round(radiusKm * 1000) + ',' + g.lat + ',' + g.lng + ')';
+    const parts = groups.flatMap((k) => OSM_FILTERS[k].map((f) => 'nwr' + f + around + ';'));
+    const data = await fetchOverpass('[out:json][timeout:30];(' + parts.join('') + ');out center tags 600;', out);
+    const elements = data.elements || [];
+    const rows = elements.map(osmToRow).filter(Boolean);
+    if (!rows.length) { out.textContent = elements.length + ' Treffer, aber keine mit Namen und Position.'; return; }
+    out.textContent = 'Speichere ' + rows.length + ' Einträge …';
+    const r = await callImport({ action: 'insert_rows', rows });
+    out.textContent = r.inserted + ' neue Entwürfe angelegt (' + elements.length + ' gefunden, ' + r.skipped_existing + ' schon vorhanden)' + (elements.length >= 600 ? ' – Ergebnis war begrenzt, ggf. kleineren Umkreis wählen.' : '.');
     toast('Import fertig.');
     await loadTable('places');
   } catch (e) {

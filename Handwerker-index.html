@@ -328,6 +328,7 @@
       <div class="tab" data-tab="infos" onclick="switchTab('infos')">Tipps &amp; Infos</div>
       <div class="tab" data-tab="places" onclick="switchTab('places')">Regionales</div>
       <div class="tab" data-tab="expert_profiles" onclick="switchTab('expert_profiles')">Meister</div>
+      <div class="tab" data-tab="trades" onclick="switchTab('trades')">Gewerke</div>
       <div class="tab" data-tab="remote_config" onclick="switchTab('remote_config')">Einstellungen</div>
       <div class="tab" data-tab="logos" onclick="switchTab('logos')">Logos</div>
     </div>
@@ -385,6 +386,15 @@
       <div class="section-title">Meister per Video – Experten freischalten</div>
       <p class="hint" style="margin-bottom: 14px;">Hier erscheinen alle, die sich in der App als Experte eingetragen haben. Erst mit gesetztem Haken „Freigeschaltet“ sind sie in der App sichtbar und buchbar. Prüfe vorher Headline und Qualifikation.</p>
       <div id="expert_profilesList"></div>
+    </div>
+
+    <div id="tab-trades" style="display:none;">
+      <div class="section-title">Gewerke – Auswahl im Profil</div>
+      <p class="hint" style="margin-bottom: 14px;">Diese Liste sieht jeder in der App bei „Gewerke wählen“. Neue Einträge sind sofort nach dem nächsten App-Start sichtbar (kein Update nötig). Jedes Gewerk bekommt automatisch eine eigene Gruppe. Mit dem Haken „Sichtbar in der App“ kannst du ein Gewerk ausblenden, ohne es zu löschen.</p>
+      <div class="section-title" style="font-size:15px;">Von Nutzern selbst eingetragen (noch nicht in der Liste)</div>
+      <div id="tradesSuggest" style="margin-bottom: 18px;"></div>
+      <div id="tradesList"></div>
+      <button class="add-btn" onclick="openEditor('trades')">+ Neues Gewerk</button>
     </div>
 
     <div id="tab-remote_config" style="display:none;">
@@ -533,6 +543,22 @@ const FIELD_CONFIG = {
     subtitleField: 'bio',
     subtitleRender: (row) => (row.approved ? '✅ freigeschaltet' : '⏳ wartet auf Freischaltung') + ' · ' + ((row.price_15min_cents || 0) / 100).toFixed(2).replace('.', ',') + ' €/15 Min. · ' + (row.qualification || ''),
   },
+  trades: {
+    label: 'Gewerke',
+    idField: 'id',
+    fields: [
+      { key: 'category', label: 'Obergruppe', type: 'select-editable', options: ['Bau & Rohbau', 'Ausbau & Innenausbau', 'Haustechnik & Energie', 'Metall & Holz', 'Garten & Landschaft', 'Gebäudeservice', 'Fahrzeuge & Maschinen', 'Dienstleistungen', 'Planung & Beratung', 'Sonstiges'], hint: 'Unter welcher Überschrift das Gewerk in der Auswahl erscheint.' },
+      { key: 'label', label: 'Name des Gewerks', type: 'text', required: true, hint: 'So sieht es der Nutzer. Nachträglich umbenennen lieber vermeiden – bei bestehenden Profilen bleibt sonst der alte Name stehen.' },
+      { key: 'id', label: 'Kurzname / ID (leer lassen = wird automatisch erzeugt)', type: 'text', disabledOnEdit: true, hint: 'Nur Kleinbuchstaben, z. B. gaertner. Danach nicht mehr änderbar.' },
+      { key: 'icon', label: 'Icon (Ionicons-Name)', type: 'text', hint: 'z. B. leaf, hammer, flash, car, sparkles, briefcase. Leer = construct. Namen auf ionic.io/ionicons.' },
+      { key: 'keywords', label: 'Suchbegriffe (optional, mit Leerzeichen)', type: 'text', hint: 'Damit auch Wörter gefunden werden, die nicht im Namen stehen, z. B. „rasen hecke mähen“.' },
+      { key: 'sort_order', label: 'Reihenfolge (kleinere Zahl = weiter oben)', type: 'number' },
+      { key: 'active', label: 'Sichtbar in der App', type: 'checkbox' },
+    ],
+    titleField: 'label',
+    subtitleField: 'category',
+    subtitleRender: (row) => (row.category || '') + (row.active === false ? ' · ausgeblendet' : ''),
+  },
   places: {
     label: 'Regionales',
     idField: 'id',
@@ -585,7 +611,7 @@ const FIELD_CONFIG = {
 };
 
 let password = '';
-let dataCache = { ads: [], infos: [], places: [], expert_profiles: [], remote_config: [], logos: [] };
+let dataCache = { ads: [], infos: [], places: [], expert_profiles: [], trades: [], remote_config: [], logos: [] };
 let logoCategoryFilter = 'alle';
 
 function toast(msg, isError) {
@@ -654,6 +680,7 @@ function showApp() {
   document.getElementById('app').style.display = 'block';
   renderList('ads');
   Object.keys(FIELD_CONFIG).filter((t) => t !== 'ads').forEach((t) => loadTable(t));
+  loadTradeSuggestions();
   loadLogos();
 }
 
@@ -711,6 +738,50 @@ function renderList(table) {
   });
 }
 
+
+function slugify(text) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+}
+
+// Gewerke, die Nutzer frei eingetragen haben und die noch nicht in der Liste stehen
+async function loadTradeSuggestions() {
+  const box = document.getElementById('tradesSuggest');
+  if (!box) return;
+  try {
+    const body = await callApi('trades', 'suggestions');
+    const rows = body.data || [];
+    box.innerHTML = '';
+    if (!rows.length) {
+      box.innerHTML = '<div class="empty">Keine offenen Eingaben – alles, was Nutzer eintragen, steht schon in der Liste.</div>';
+      return;
+    }
+    rows.forEach((r) => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = '<div class="info"><b></b><span></span></div><button class="icon-btn" title="In die Liste übernehmen">＋</button>';
+      card.querySelector('b').textContent = r.label;
+      card.querySelector('span').textContent = r.count + (r.count === 1 ? ' Nutzer' : ' Nutzer') + ' · in „Sonstiges“ übernehmen';
+      card.querySelector('.icon-btn').onclick = async () => {
+        try {
+          await callApi('trades', 'upsert', { row: { id: slugify(r.label) || ('gewerk-' + Date.now()), label: r.label, category: 'Sonstiges', icon: 'construct', keywords: null, sort_order: 1100, active: true } });
+          toast('„' + r.label + '“ übernommen (Obergruppe & Icon kannst du unten ändern).');
+          loadTable('trades');
+          loadTradeSuggestions();
+        } catch (e) {
+          toast(e.message, true);
+        }
+      };
+      box.appendChild(card);
+    });
+  } catch (e) {
+    box.innerHTML = '<div class="empty">Konnte Eingaben nicht laden (' + e.message + ').</div>';
+  }
+}
 
 async function callImport(payload) {
   const res = await fetch(IMPORT_PLACES_URL, {
@@ -1164,6 +1235,13 @@ function openEditor(table, existing) {
       }
     });
     if (jsonError) { toast(jsonError, true); return; }
+    if (table === 'trades') {
+      row.label = (row.label || '').trim();
+      row.icon = (row.icon || '').trim() || 'construct';
+      row.keywords = (row.keywords || '').trim() || null;
+      if (!row.id || !String(row.id).trim()) row.id = slugify(row.label);
+      if (!row.id) { toast('Bitte einen Namen eintragen.', true); return; }
+    }
     if (table === 'places') {
       for (const k of ['address', 'plz', 'city', 'phone', 'website', 'image_url', 'description']) {
         if (typeof row[k] === 'string') row[k] = row[k].trim() || null;
@@ -1183,6 +1261,7 @@ function openEditor(table, existing) {
       toast('Gespeichert.');
       form.remove();
       loadTable(table);
+      if (table === 'trades') loadTradeSuggestions();
     } catch (e) {
       toast(e.message, true);
     }
